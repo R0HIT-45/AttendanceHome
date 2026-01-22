@@ -1,7 +1,12 @@
 import { supabase } from '../lib/supabase';
-import type { Labour, AttendanceRecord } from '../types';
+import type { Labour, AttendanceRecord, Category } from '../types';
 
-// Helper to convert DB format to app format
+const mapCategoryFromDB = (dbCategory: any): Category => ({
+    id: dbCategory.id,
+    name: dbCategory.name,
+    userId: dbCategory.user_id,
+});
+
 const mapLabourFromDB = (dbLabour: any): Labour => ({
     id: dbLabour.id,
     name: dbLabour.name,
@@ -12,6 +17,8 @@ const mapLabourFromDB = (dbLabour: any): Labour => ({
     status: dbLabour.status,
     designation: dbLabour.designation,
     phone: dbLabour.phone,
+    categoryId: dbLabour.category_id,
+    createdAt: dbLabour.created_at,
 });
 
 const mapAttendanceFromDB = (dbRecord: any): AttendanceRecord => ({
@@ -20,6 +27,8 @@ const mapAttendanceFromDB = (dbRecord: any): AttendanceRecord => ({
     date: dbRecord.date,
     status: dbRecord.status,
     wageCalculated: parseFloat(dbRecord.wage_calculated),
+    voidedAt: dbRecord.voided_at,
+    voidedBy: dbRecord.voided_by,
 });
 
 // Labour Operations
@@ -29,7 +38,7 @@ export const database = {
         const { data, error } = await supabase
             .from('labours')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('name', { ascending: true }); // Alphabetical sorting
 
         if (error) {
             console.error('Error fetching labours:', error);
@@ -57,6 +66,7 @@ export const database = {
                 status: labour.status,
                 designation: labour.designation,
                 phone: labour.phone,
+                category_id: labour.categoryId,
             })
             .select()
             .single();
@@ -80,6 +90,7 @@ export const database = {
         if (updates.status) updateData.status = updates.status;
         if (updates.designation !== undefined) updateData.designation = updates.designation;
         if (updates.phone !== undefined) updateData.phone = updates.phone;
+        if (updates.categoryId !== undefined) updateData.category_id = updates.categoryId;
         updateData.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
@@ -97,7 +108,6 @@ export const database = {
         return mapLabourFromDB(data);
     },
 
-    // Delete labour
     deleteLabour: async (id: string): Promise<void> => {
         const { error } = await supabase
             .from('labours')
@@ -115,6 +125,7 @@ export const database = {
         let query = supabase
             .from('attendance_records')
             .select('*')
+            .neq('status', 'voided') // Default to non-voided for general reports
             .order('date', { ascending: false });
 
         if (filters?.startDate) {
@@ -134,30 +145,29 @@ export const database = {
         return data.map(mapAttendanceFromDB);
     },
 
-    // Create attendance record
-    createAttendance: async (record: Omit<AttendanceRecord, 'id'>): Promise<AttendanceRecord> => {
+    // Bulk create/update attendance records
+    bulkCreateAttendance: async (records: Omit<AttendanceRecord, 'id'>[]): Promise<void> => {
         const { data: { user } } = await supabase.auth.getUser();
-
         if (!user) throw new Error('User not authenticated');
 
-        const { data, error } = await supabase
+        const insertData = records.map(record => ({
+            user_id: user.id,
+            labour_id: record.labourId,
+            date: record.date,
+            status: record.status,
+            wage_calculated: record.wageCalculated,
+        }));
+
+        const { error } = await supabase
             .from('attendance_records')
-            .insert({
-                user_id: user.id,
-                labour_id: record.labourId,
-                date: record.date,
-                status: record.status,
-                wage_calculated: record.wageCalculated,
-            })
-            .select()
-            .single();
+            .upsert(insertData, {
+                onConflict: 'labour_id,date'
+            });
 
         if (error) {
-            console.error('Error creating attendance:', error);
+            console.error('Error in bulk attendance:', error);
             throw error;
         }
-
-        return mapAttendanceFromDB(data);
     },
 
     // Get attendance for a specific date
@@ -165,7 +175,8 @@ export const database = {
         const { data, error } = await supabase
             .from('attendance_records')
             .select('*')
-            .eq('date', date);
+            .eq('date', date)
+            .neq('status', 'voided');
 
         if (error) {
             console.error('Error fetching attendance by date:', error);
@@ -173,6 +184,80 @@ export const database = {
         }
 
         return data.map(mapAttendanceFromDB);
+    },
+
+    // Analytics: Get attendance percentages for the last N days
+    getAttendanceTrends: async (days: number = 30): Promise<any[]> => {
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const { data: labours } = await supabase.from('labours').select('id').eq('status', 'active');
+        const totalActive = labours?.length || 0;
+
+        const { data, error } = await supabase
+            .from('attendance_records')
+            .select('date, status, labour_id')
+            .gte('date', startDate)
+            .lte('date', endDate);
+
+        if (error) throw error;
+
+        // Unique workers present per day
+        const grouped = data.reduce((acc: any, curr) => {
+            if (!acc[curr.date]) acc[curr.date] = new Set();
+            if (curr.status === 'present' || curr.status === 'half-day') {
+                acc[curr.date].add(curr.labour_id);
+            }
+            return acc;
+        }, {});
+
+        // Fill missing dates and calculate percentage
+        const trends = [];
+        for (let i = 0; i < days; i++) {
+            const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const uniquePresent = grouped[d]?.size || 0;
+            trends.push({
+                date: d.slice(5), // MM-DD
+                fullDate: d,
+                percentage: totalActive > 0 ? Math.round((uniquePresent / totalActive) * 100) : 0,
+                present: uniquePresent,
+                total: totalActive
+            });
+        }
+
+        return trends;
+    },
+
+    // Analytics: Get daily costs for the last N days
+    getCostAnalysis: async (days: number = 30): Promise<any[]> => {
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const { data, error } = await supabase
+            .from('attendance_records')
+            .select('date, wage_calculated')
+            .gte('date', startDate)
+            .lte('date', endDate);
+
+        if (error) throw error;
+
+        const grouped = data.reduce((acc: any, curr) => {
+            if (!acc[curr.date]) acc[curr.date] = 0;
+            acc[curr.date] += parseFloat(curr.wage_calculated);
+            return acc;
+        }, {});
+
+        const analysis = [];
+        for (let i = 0; i < days; i++) {
+            const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            analysis.push({
+                date: d.slice(5),
+                fullDate: d,
+                cost: Math.round(grouped[d] || 0)
+            });
+        }
+
+        return analysis;
     },
 
     // Real-time subscriptions
@@ -219,5 +304,88 @@ export const database = {
         return () => {
             subscription.unsubscribe();
         };
+    },
+
+    // Category Operations
+    getCategories: async (): Promise<Category[]> => {
+        const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .order('name', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching categories:', error);
+            // If the table doesn't exist yet (42P01) or isn't in cache (PGRST205),
+            // return empty array to prevent entire page failure.
+            if (error.code === '42P01' || error.code === 'PGRST205') return [];
+            throw error;
+        }
+
+        return (data || []).map(mapCategoryFromDB);
+    },
+
+    createCategory: async (name: string): Promise<Category> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
+        const { data, error } = await supabase
+            .from('categories')
+            .insert({
+                user_id: user.id,
+                name: name,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating category:', error);
+            throw error;
+        }
+
+        return mapCategoryFromDB(data);
+    },
+
+    deleteCategory: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('categories')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting category:', error);
+            throw error;
+        }
+    },
+
+    deleteAttendanceRecord: async (id: string): Promise<void> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
+        const { error } = await supabase
+            .from('attendance_records')
+            .update({
+                status: 'voided',
+                wage_calculated: 0,
+                voided_at: new Date().toISOString(),
+                voided_by: user.id
+            })
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error voiding attendance record:', error);
+            throw error;
+        }
+    },
+
+    // Admin only: Get full audit history (including voided)
+    getAttendanceAuditHistory: async (labourId: string): Promise<AttendanceRecord[]> => {
+        const { data, error } = await supabase
+            .from('attendance_records')
+            .select('*')
+            .eq('labour_id', labourId)
+            .order('date', { ascending: false });
+
+        if (error) throw error;
+        return data.map(mapAttendanceFromDB);
     },
 };

@@ -5,12 +5,18 @@ import {
     CalendarCheck,
     CreditCard,
     BarChart3,
-    LogOut
+    LogOut,
+    X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 
-const Sidebar = () => {
+interface SidebarProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
+
+const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     const navigate = useNavigate();
     const { signOut, user } = useAuth();
 
@@ -57,12 +63,25 @@ const Sidebar = () => {
             initial={{ x: -250, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="sidebar"
+            className={`sidebar ${isOpen ? 'open' : ''}`}
         >
             <div className="sidebar-header">
                 <h1 className="brand-title">
                     LAMS <span className="brand-subtitle">Admin Panel</span>
                 </h1>
+                <button
+                    className="sidebar-close-btn"
+                    onClick={onClose}
+                    style={{
+                        padding: '0.5rem',
+                        color: 'white',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '0.5rem',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                    }}
+                >
+                    <X size={20} />
+                </button>
             </div>
 
             <nav className="sidebar-nav">
@@ -102,7 +121,7 @@ const Sidebar = () => {
                         background: 'rgba(255, 255, 255, 0.05)',
                         color: 'rgba(255, 255, 255, 0.8)',
                         fontSize: '0.85rem',
-                    }}>
+                    }} className="user-info-text">
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
                             {user.user_metadata?.name || 'Admin User'}
                         </div>

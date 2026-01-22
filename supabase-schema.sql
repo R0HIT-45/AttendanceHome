@@ -3,10 +3,20 @@
 -- Run this in Supabase Dashboard → SQL Editor
 -- ===================================================
 
+-- Create categories table
+CREATE TABLE IF NOT EXISTS categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, name)
+);
+
 -- Create labours table
 CREATE TABLE IF NOT EXISTS labours (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users NOT NULL,
+  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   aadhaar TEXT UNIQUE NOT NULL,
   photo_url TEXT,
@@ -25,8 +35,10 @@ CREATE TABLE IF NOT EXISTS attendance_records (
   user_id UUID REFERENCES auth.users NOT NULL,
   labour_id UUID REFERENCES labours(id) ON DELETE CASCADE NOT NULL,
   date DATE NOT NULL,
-  status TEXT CHECK (status IN ('present', 'absent', 'half-day')) NOT NULL,
+  status TEXT CHECK (status IN ('present', 'absent', 'half-day', 'voided')) NOT NULL,
   wage_calculated DECIMAL(10,2) NOT NULL,
+  voided_at TIMESTAMPTZ,
+  voided_by UUID REFERENCES auth.users,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(labour_id, date)
 );
@@ -34,6 +46,14 @@ CREATE TABLE IF NOT EXISTS attendance_records (
 -- ===================================================
 -- Row Level Security (RLS) Policies
 -- ===================================================
+
+-- Enable RLS on categories table
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+
+-- Categories: Users can manage their own categories
+CREATE POLICY "Users can manage their own categories"
+  ON categories FOR ALL
+  USING (auth.uid() = user_id);
 
 -- Enable RLS on labours table
 ALTER TABLE labours ENABLE ROW LEVEL SECURITY;
@@ -85,7 +105,9 @@ CREATE POLICY "Users can delete their own attendance records"
 -- Indexes for better performance
 -- ===================================================
 
+CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_labours_user_id ON labours(user_id);
+CREATE INDEX IF NOT EXISTS idx_labours_category_id ON labours(category_id);
 CREATE INDEX IF NOT EXISTS idx_labours_status ON labours(status);
 CREATE INDEX IF NOT EXISTS idx_attendance_user_id ON attendance_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_records(date);

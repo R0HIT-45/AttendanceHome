@@ -1,8 +1,7 @@
-export interface User {
+export interface Category {
     id: string;
-    email: string;
     name: string;
-    role: 'admin' | 'labour';
+    userId: string;
 }
 
 export interface Labour {
@@ -15,12 +14,16 @@ export interface Labour {
     status: 'active' | 'inactive';
     designation?: string;
     phone?: string;
+    categoryId?: string;
+    createdAt?: string;
 }
 
 export interface AttendanceRecord {
     id: string;
     labourId: string;
     date: string; // YYYY-MM-DD
-    status: 'present' | 'absent' | 'half-day';
+    status: 'present' | 'absent' | 'half-day' | 'voided';
     wageCalculated: number;
+    voidedAt?: string;
+    voidedBy?: string;
 }

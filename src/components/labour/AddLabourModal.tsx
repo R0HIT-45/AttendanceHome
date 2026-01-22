@@ -1,51 +1,125 @@
 import { useState } from 'react';
-import { X, Upload, Check } from 'lucide-react';
+import { X, Upload, Check, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { storage } from '../../services/storage';
-import type { Labour } from '../../types';
+import { database } from '../../services/database';
+import type { Category, Labour } from '../../types';
+import { useEffect } from 'react';
 
 interface AddLabourModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    editLabour?: Labour | null;
 }
 
-const AddLabourModal = ({ isOpen, onClose, onSuccess }: AddLabourModalProps) => {
+const AddLabourModal = ({ isOpen, onClose, onSuccess, editLabour }: AddLabourModalProps) => {
     const [formData, setFormData] = useState({
         name: '',
         aadhaar: '',
         dailyWage: '',
         joiningDate: new Date().toISOString().split('T')[0],
         phone: '',
-        designation: 'Helper'
+        designation: 'Helper',
+        categoryId: ''
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [showCategoryInput, setShowCategoryInput] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-        const newLabour: Labour = {
-            id: crypto.randomUUID(),
-            name: formData.name,
-            aadhaar: formData.aadhaar,
-            dailyWage: Number(formData.dailyWage),
-            joiningDate: formData.joiningDate,
-            status: 'active',
-            phone: formData.phone,
-            designation: formData.designation
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const data = await database.getCategories();
+                setCategories(data);
+            } catch (err) {
+                console.error('Failed to load categories:', err);
+            }
         };
 
-        storage.saveLabour(newLabour);
-        onSuccess();
-        onClose();
-        // Reset form
-        setFormData({
-            name: '',
-            aadhaar: '',
-            dailyWage: '',
-            joiningDate: new Date().toISOString().split('T')[0],
-            phone: '',
-            designation: 'Helper'
-        });
+        if (isOpen) {
+            loadCategories();
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (editLabour) {
+            setFormData({
+                name: editLabour.name,
+                aadhaar: editLabour.aadhaar,
+                dailyWage: editLabour.dailyWage.toString(),
+                joiningDate: editLabour.joiningDate,
+                phone: editLabour.phone || '',
+                designation: editLabour.designation || 'Helper',
+                categoryId: editLabour.categoryId || ''
+            });
+        } else {
+            setFormData({
+                name: '',
+                aadhaar: '',
+                dailyWage: '',
+                joiningDate: new Date().toISOString().split('T')[0],
+                phone: '',
+                designation: 'Helper',
+                categoryId: ''
+            });
+        }
+    }, [editLabour, isOpen]);
+
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim()) return;
+        try {
+            setLoading(true);
+            const category = await database.createCategory(newCategoryName);
+            setCategories([...categories, category]);
+            setFormData({ ...formData, categoryId: category.id });
+            setNewCategoryName('');
+            setShowCategoryInput(false);
+        } catch (err) {
+            console.error('Failed to create category:', err);
+            alert('Failed to create category.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            if (editLabour) {
+                await database.updateLabour(editLabour.id, {
+                    name: formData.name,
+                    aadhaar: formData.aadhaar,
+                    dailyWage: Number(formData.dailyWage),
+                    joiningDate: formData.joiningDate,
+                    phone: formData.phone,
+                    designation: formData.designation,
+                    categoryId: formData.categoryId || undefined,
+                });
+            } else {
+                await database.createLabour({
+                    name: formData.name,
+                    aadhaar: formData.aadhaar,
+                    dailyWage: Number(formData.dailyWage),
+                    joiningDate: formData.joiningDate,
+                    status: 'active',
+                    phone: formData.phone,
+                    designation: formData.designation,
+                    categoryId: formData.categoryId || undefined,
+                });
+            }
+
+            onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('Failed to save labour:', error);
+            alert('Failed to save labour record. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -60,15 +134,43 @@ const AddLabourModal = ({ isOpen, onClose, onSuccess }: AddLabourModalProps) => 
                         onClick={onClose}
                     />
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.9, y: 30 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, pointerEvents: 'none' }}
+                        exit={{ opacity: 0, scale: 0.9, y: 30 }}
+                        style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, pointerEvents: 'none', padding: '1.5rem' }}
                     >
-                        <div style={{ background: 'white', width: '100%', maxWidth: '32rem', borderRadius: '1rem', boxShadow: 'var(--shadow-2xl)', pointerEvents: 'auto', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden' }}>
-                            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--color-background)' }}>
-                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-text-main)' }}>Add New Labour</h2>
-                                <button onClick={onClose} style={{ padding: '0.5rem', borderRadius: '50%', color: 'var(--color-text-secondary)', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#E2E8F0'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                        <div className="glass-panel" style={{
+                            width: '100%',
+                            maxWidth: '36rem',
+                            pointerEvents: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxHeight: '90vh',
+                            padding: 0,
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255,255,255,0.4)',
+                            boxShadow: 'var(--shadow-xl), var(--shadow-glow-primary)'
+                        }}>
+                            <div className="flex-row justify-between items-center" style={{
+                                padding: '1.5rem 2rem',
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.1)'
+                            }}>
+                                <div>
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+                                        {editLabour ? 'Edit Information' : 'New Workforce Member'}
+                                    </h2>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                                        {editLabour ? 'Update the details for this worker' : 'Fill in the details to register a new labourer'}
+                                    </p>
+                                </div>
+                                <button onClick={onClose} style={{
+                                    padding: '0.5rem',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    color: 'var(--color-text-secondary)',
+                                    transition: 'all 0.2s'
+                                }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,107,107,0.1)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}>
                                     <X size={20} />
                                 </button>
                             </div>
@@ -97,6 +199,7 @@ const AddLabourModal = ({ isOpen, onClose, onSuccess }: AddLabourModalProps) => 
                                             style={{ fontFamily: 'monospace' }}
                                             placeholder="XXXXXXXXXXXX"
                                             value={formData.aadhaar}
+                                            disabled={!!editLabour} // Aadhaar usually doesn't change
                                             onChange={e => setFormData({ ...formData, aadhaar: e.target.value })}
                                         />
                                     </div>
@@ -137,22 +240,114 @@ const AddLabourModal = ({ isOpen, onClose, onSuccess }: AddLabourModalProps) => 
                                     </div>
 
                                     <div style={{ gridColumn: '1 / -1' }}>
-                                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-main)', marginBottom: '0.25rem' }}>Photo</label>
-                                        <div style={{ border: '2px dashed #CBD5E1', borderRadius: '0.5rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', cursor: 'pointer', transition: 'background 0.2s' }}
-                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-main)', marginBottom: '0.5rem' }}>Workforce Category</label>
+                                        <div className="flex-row gap-2">
+                                            <div style={{ flex: 1 }}>
+                                                {showCategoryInput ? (
+                                                    <div className="flex-row gap-2">
+                                                        <input
+                                                            autoFocus
+                                                            type="text"
+                                                            className="input-field"
+                                                            placeholder="New Category Name..."
+                                                            value={newCategoryName}
+                                                            onChange={e => setNewCategoryName(e.target.value)}
+                                                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleCreateCategory())}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleCreateCategory}
+                                                            className="btn btn-primary"
+                                                            style={{ padding: '0.5rem 1rem' }}
+                                                        >
+                                                            <Check size={18} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowCategoryInput(false)}
+                                                            className="btn"
+                                                            style={{ padding: '0.5rem 1rem' }}
+                                                        >
+                                                            <X size={18} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex-row gap-2">
+                                                        <select
+                                                            className="input-field no-icon"
+                                                            value={formData.categoryId}
+                                                            onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                                                            style={{ paddingLeft: '1rem' }}
+                                                        >
+                                                            <option value="">Select Category (Optional)</option>
+                                                            {categories.map(cat => (
+                                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowCategoryInput(true)}
+                                                            className="btn"
+                                                            style={{
+                                                                padding: '0.5rem 1rem',
+                                                                background: 'rgba(102, 126, 234, 0.1)',
+                                                                color: 'var(--color-primary)',
+                                                                border: '1px dashed var(--color-primary)'
+                                                            }}
+                                                        >
+                                                            <Plus size={18} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aadhaar Verification Photo</label>
+                                        <div style={{
+                                            border: '2px dashed rgba(102, 126, 234, 0.3)',
+                                            borderRadius: '1rem',
+                                            padding: '2rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--color-primary)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s',
+                                            background: 'rgba(102, 126, 234, 0.05)'
+                                        }}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                                                e.currentTarget.style.borderColor = 'var(--color-primary)';
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
+                                                e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.3)';
+                                            }}
                                         >
-                                            <Upload size={24} style={{ marginBottom: '0.5rem' }} />
-                                            <span style={{ fontSize: '0.875rem' }}>Click to upload photo</span>
+                                            <Upload size={32} style={{ marginBottom: '0.75rem', opacity: 0.7 }} />
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Click or Drag to Upload Photo</span>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>JPG, PNG up to 5MB</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex-row gap-3 justify-end" style={{ paddingTop: '1rem' }}>
-                                    <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-                                    <button type="submit" className="btn btn-primary">
+                                <div className="flex-row gap-4 justify-end" style={{
+                                    padding: '1.5rem 2.5rem',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    borderTop: '1px solid rgba(255,255,255,0.1)'
+                                }}>
+                                    <button type="button" onClick={onClose} className="btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--color-text-secondary)' }}>Cancel</button>
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary"
+                                        disabled={loading}
+                                        style={{ padding: '0.75rem 2rem', boxShadow: 'var(--shadow-glow-primary)' }}
+                                    >
                                         <Check size={18} style={{ marginRight: '0.5rem' }} />
-                                        Save Labour
+                                        {loading ? (editLabour ? 'Saving...' : 'Registering...') : (editLabour ? 'Update Details' : 'Register Member')}
                                     </button>
                                 </div>
                             </form>

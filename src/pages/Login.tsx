@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authUtils } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, ArrowRight, Chrome, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -8,6 +9,7 @@ type AuthMode = 'signin' | 'signup' | 'reset';
 
 const Login = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { signInWithEmail, signInWithGoogle, signUp, resetPassword } = useAuth();
 
     const [mode, setMode] = useState<AuthMode>('signin');
@@ -21,6 +23,13 @@ const Login = () => {
         name: '',
     });
 
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('reason') === 'expired') {
+            setError('Your session has expired. Please sign in again.');
+        }
+    }, [location]);
+
     const handleEmailSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -33,7 +42,8 @@ const Login = () => {
             setError(error.message);
             setLoading(false);
         } else {
-            navigate('/');
+            authUtils.setLoginTime(); // Set the 7-day session timer
+            navigate('/dashboard');
         }
     };
 

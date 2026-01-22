@@ -1,13 +1,45 @@
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import Header from './Header';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Layout = () => {
     const location = useLocation();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Close sidebar on route change (mobile)
+    useEffect(() => {
+        setIsSidebarOpen(false);
+    }, [location.pathname]);
+
+    // Prevent scrolling when sidebar is open on mobile
+    useEffect(() => {
+        if (isSidebarOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+    }, [isSidebarOpen]);
 
     return (
         <div className="app-layout">
-            <Sidebar />
+            <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+            {/* Sidebar Overlay for Mobile */}
+            <AnimatePresence>
+                {isSidebarOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="sidebar-mask"
+                    />
+                )}
+            </AnimatePresence>
 
             {/* Floating Animated Shapes */}
             <motion.div
@@ -23,6 +55,7 @@ const Layout = () => {
                     ease: "easeInOut"
                 }}
             />
+            {/* ... rest of the floating shapes ... */}
             <motion.div
                 className="floating-shape shape-2"
                 animate={{

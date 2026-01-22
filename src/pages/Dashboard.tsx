@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Users, CheckCircle2, AlertCircle, IndianRupee } from 'lucide-react';
 import { database } from '../services/database';
 import { motion, useMotionValue, useTransform, useSpring, animate } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 // Animated Counter Component
 const AnimatedCounter = ({ value, prefix = '', suffix = '' }: { value: number | string, prefix?: string, suffix?: string }) => {
@@ -36,12 +37,15 @@ const Dashboard = () => {
         totalCostMonth: 0
     });
 
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [trends, setTrends] = useState<{ date: string; percentage: number }[]>([]);
+    const [costs, setCosts] = useState<{ date: string; cost: number }[]>([]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
-
+                setLoading(true);
                 setError('');
 
                 const labours = await database.getLabours();
@@ -51,7 +55,11 @@ const Dashboard = () => {
                 const thisMonth = today.slice(0, 7);
 
                 const active = labours.filter(l => l.status === 'active').length;
-                const present = attendance.filter(r => r.date === today && r.status === 'present').length;
+                const uniquePresentToday = new Set(
+                    attendance
+                        .filter(r => r.date === today && (r.status === 'present' || r.status === 'half-day'))
+                        .map(r => r.labourId)
+                ).size;
                 const monthlyCost = attendance
                     .filter(r => r.date.startsWith(thisMonth))
                     .reduce((sum, r) => sum + r.wageCalculated, 0);
@@ -59,14 +67,19 @@ const Dashboard = () => {
                 setStats({
                     totalLabours: labours.length,
                     activeLabours: active,
-                    presentToday: present,
+                    presentToday: uniquePresentToday,
                     totalCostMonth: monthlyCost
                 });
+
+                const trendData = await database.getAttendanceTrends();
+                const costData = await database.getCostAnalysis();
+                setTrends(trendData);
+                setCosts(costData);
             } catch (err) {
                 console.error('Error fetching dashboard data:', err);
-                setError('Failed to load dashboard data. Please check your database connection.');
+                setError('Failed to load dashboard data. Please check your connection.');
             } finally {
-
+                setLoading(false);
             }
         };
 
@@ -213,164 +226,223 @@ const Dashboard = () => {
                 </motion.div>
             )}
 
-            <div className="grid-4" style={{ marginBottom: '2.5rem' }}>
-                {widgets.map((widget, index) => (
-                    <Card3D key={index} index={index}>
-                        <div className="flex-row justify-between" style={{ alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
-                            <div style={{ flex: 1 }}>
-                                <p style={{
-                                    color: 'var(--color-text-secondary)',
-                                    fontSize: '0.875rem',
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10rem' }}>
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        style={{
+                            width: '50px',
+                            height: '50px',
+                            border: '4px solid rgba(102, 126, 234, 0.1)',
+                            borderTopColor: '#667eea',
+                            borderRadius: '50%',
+                        }}
+                    />
+                </div>
+            ) : (
+                <>
+                    <div className="grid-4" style={{ marginBottom: '2.5rem' }}>
+                        {widgets.map((widget, index) => (
+                            <Card3D key={index} index={index}>
+                                <div className="flex-row justify-between" style={{ alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{
+                                            color: 'var(--color-text-secondary)',
+                                            fontSize: '0.875rem',
+                                            fontWeight: 600,
+                                            marginBottom: '0.75rem',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.05em'
+                                        }}>
+                                            {widget.label}
+                                        </p>
+                                        <h3 style={{
+                                            fontSize: '2.25rem',
+                                            fontWeight: 800,
+                                            background: widget.gradient,
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            backgroundClip: 'text',
+                                        }}>
+                                            {widget.isRupee ? (
+                                                <AnimatedCounter value={widget.value} prefix="₹" />
+                                            ) : (
+                                                <AnimatedCounter value={widget.value} />
+                                            )}
+                                        </h3>
+                                    </div>
+
+                                    <motion.div
+                                        style={{
+                                            padding: '1rem',
+                                            borderRadius: '1rem',
+                                            background: widget.gradient,
+                                            color: 'white',
+                                            boxShadow: `0 8px 24px ${widget.shadowColor}`,
+                                            position: 'relative',
+                                        }}
+                                        whileHover={{
+                                            rotate: [0, -10, 10, 0],
+                                            transition: { duration: 0.5 }
+                                        }}
+                                    >
+                                        <widget.icon size={28} strokeWidth={2.5} />
+                                    </motion.div>
+                                </div>
+
+                                <div style={{
+                                    marginTop: '1.25rem',
+                                    paddingTop: '1rem',
+                                    borderTop: '1px solid var(--color-border-light)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--color-text-muted)',
                                     fontWeight: 600,
-                                    marginBottom: '0.75rem',
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {widget.label}
-                                </p>
-                                <h3 style={{
-                                    fontSize: '2.25rem',
-                                    fontWeight: 800,
-                                    background: widget.gradient,
-                                    WebkitBackgroundClip: 'text',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundClip: 'text',
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: '100%' }}
+                                        transition={{ delay: index * 0.1 + 0.5, duration: 0.8 }}
+                                        style={{
+                                            height: '3px',
+                                            background: widget.gradient,
+                                            borderRadius: '999px',
+                                            marginRight: '0.5rem'
+                                        }}
+                                    />
+                                    <span>Live Data</span>
+                                </div>
+                            </Card3D>
+                        ))}
+                    </div>
+
+                    <div className="grid-2" style={{ gap: '1.5rem' }}>
+                        <motion.div
+                            className="glass-panel"
+                            style={{
+                                height: '24rem',
+                                padding: '1.5rem',
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}
+                            initial={{ opacity: 0, x: -30 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.6 }}
+                        >
+                            <div className="flex-row justify-between items-center" style={{ marginBottom: '1.5rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Attendance Trend</h3>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Presence rate (%) over 14 days</p>
+                                </div>
+                                <div style={{
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '2rem',
+                                    background: 'rgba(102, 126, 234, 0.1)',
+                                    color: '#667eea',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700
                                 }}>
-                                    {widget.isRupee ? (
-                                        <AnimatedCounter value={widget.value} prefix="₹" />
-                                    ) : (
-                                        <AnimatedCounter value={widget.value} />
-                                    )}
-                                </h3>
+                                    Active Now
+                                </div>
                             </div>
 
-                            <motion.div
-                                style={{
-                                    padding: '1rem',
-                                    borderRadius: '1rem',
-                                    background: widget.gradient,
-                                    color: 'white',
-                                    boxShadow: `0 8px 24px ${widget.shadowColor}`,
-                                    position: 'relative',
-                                }}
-                                whileHover={{
-                                    rotate: [0, -10, 10, 0],
-                                    transition: { duration: 0.5 }
-                                }}
-                            >
-                                <widget.icon size={28} strokeWidth={2.5} />
-                            </motion.div>
-                        </div>
+                            <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={trends}>
+                                        <defs>
+                                            <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#667eea" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#667eea" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} domain={[0, 100]} />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div className="glass-panel" style={{ padding: '0.75rem', border: '1px solid rgba(102, 126, 234, 0.3)', background: '#1a1a2e' }}>
+                                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>{data.fullDate}</p>
+                                                            <p style={{ margin: '0.25rem 0 0', fontWeight: 800, color: '#667eea', fontSize: '1rem' }}>{data.percentage}% Presence</p>
+                                                            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>{data.present} of {data.total} workers</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Area type="monotone" dataKey="percentage" stroke="#667eea" strokeWidth={3} fillOpacity={1} fill="url(#colorTrend)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </motion.div>
 
-                        <div style={{
-                            marginTop: '1.25rem',
-                            paddingTop: '1rem',
-                            borderTop: '1px solid var(--color-border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            fontSize: '0.8rem',
-                            color: 'var(--color-text-muted)',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em'
-                        }}>
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: '100%' }}
-                                transition={{ delay: index * 0.1 + 0.5, duration: 0.8 }}
-                                style={{
-                                    height: '3px',
-                                    background: widget.gradient,
-                                    borderRadius: '999px',
-                                    marginRight: '0.5rem'
-                                }}
-                            />
-                            <span>Live Data</span>
-                        </div>
-                    </Card3D>
-                ))}
-            </div>
+                        <motion.div
+                            className="glass-panel"
+                            style={{
+                                height: '24rem',
+                                padding: '1.5rem',
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}
+                            initial={{ opacity: 0, x: 30 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.7 }}
+                        >
+                            <div className="flex-row justify-between items-center" style={{ marginBottom: '1.5rem' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Cost Analysis</h3>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Daily expenditure over 7 days</p>
+                                </div>
+                                <div style={{
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '2rem',
+                                    background: 'rgba(67, 233, 123, 0.1)',
+                                    color: '#43e97b',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700
+                                }}>
+                                    ₹ Today
+                                </div>
+                            </div>
 
-            {/* Charts Placeholder with Loading Animation */}
-            <div className="grid-2">
-                <motion.div
-                    className="glass-panel flex-center"
-                    style={{
-                        height: '20rem',
-                        flexDirection: 'column',
-                        gap: '1rem',
-                        position: 'relative',
-                        overflow: 'hidden',
-                    }}
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 }}
-                >
-                    <motion.div
-                        animate={{
-                            rotate: 360,
-                        }}
-                        transition={{
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: "linear"
-                        }}
-                        style={{
-                            width: '100px',
-                            height: '100px',
-                            borderRadius: '50%',
-                            border: '4px solid transparent',
-                            borderTopColor: '#667eea',
-                            borderRightColor: '#764ba2',
-                        }}
-                    />
-                    <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-                        Attendance Trend Chart
-                    </p>
-                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                        Loading analytics...
-                    </p>
-                </motion.div>
-
-                <motion.div
-                    className="glass-panel flex-center"
-                    style={{
-                        height: '20rem',
-                        flexDirection: 'column',
-                        gap: '1rem',
-                        position: 'relative',
-                        overflow: 'hidden',
-                    }}
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7 }}
-                >
-                    <motion.div
-                        animate={{
-                            rotate: -360,
-                        }}
-                        transition={{
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: "linear"
-                        }}
-                        style={{
-                            width: '100px',
-                            height: '100px',
-                            borderRadius: '50%',
-                            border: '4px solid transparent',
-                            borderTopColor: '#43e97b',
-                            borderRightColor: '#38f9d7',
-                        }}
-                    />
-                    <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-                        Cost Analysis Chart
-                    </p>
-                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                        Loading analytics...
-                    </p>
-                </motion.div>
-            </div>
+                            <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={costs}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const data = payload[0].payload;
+                                                    return (
+                                                        <div className="glass-panel" style={{ padding: '0.75rem', border: '1px solid rgba(67, 233, 123, 0.3)', background: '#1a1a2e' }}>
+                                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 700 }}>{data.fullDate}</p>
+                                                            <p style={{ margin: '0.25rem 0 0', fontWeight: 800, color: '#43e97b', fontSize: '1.1rem' }}>₹{data.cost.toLocaleString()}</p>
+                                                            <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>Daily Payout</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar dataKey="cost" fill="#43e97b" radius={[4, 4, 0, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </motion.div>
+                    </div>
+                </>
+            )}
         </motion.div>
     );
 };
