@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Download, Search, FileText, Table, AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
 import { database } from '../../services/database';
 import { exportToPDF, exportToExcel } from '../../utils/exportUtils';

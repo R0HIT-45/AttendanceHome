@@ -14,9 +14,10 @@ import { useAuth } from '../../contexts/AuthContext';
 interface SidebarProps {
     isOpen: boolean;
     onClose: () => void;
+    isMobile?: boolean;
 }
 
-const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+const Sidebar = ({ isOpen, onClose, isMobile }: SidebarProps) => {
     const navigate = useNavigate();
     const { signOut, user } = useAuth();
 
@@ -60,28 +61,31 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
     return (
         <motion.aside
-            initial={{ x: -250, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+            initial={isMobile ? { x: -280, opacity: 0 } : { x: 0, opacity: 1 }}
+            animate={{ x: isMobile && !isOpen ? -280 : 0, opacity: isMobile && !isOpen ? 0 : 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
             className={`sidebar ${isOpen ? 'open' : ''}`}
+            style={isMobile ? { position: 'fixed', zIndex: 100 } : {}}
         >
             <div className="sidebar-header">
                 <h1 className="brand-title">
                     LAMS <span className="brand-subtitle">Admin Panel</span>
                 </h1>
-                <button
-                    className="sidebar-close-btn"
-                    onClick={onClose}
-                    style={{
-                        padding: '0.5rem',
-                        color: 'white',
-                        background: 'rgba(255,255,255,0.1)',
-                        borderRadius: '0.5rem',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                    }}
-                >
-                    <X size={20} />
-                </button>
+                {isMobile && (
+                    <button
+                        className="sidebar-close-btn"
+                        onClick={onClose}
+                        style={{
+                            padding: '0.5rem',
+                            color: 'white',
+                            background: 'rgba(255,255,255,0.1)',
+                            borderRadius: '0.5rem',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                        }}
+                    >
+                        <X size={20} />
+                    </button>
+                )}
             </div>
 
             <nav className="sidebar-nav">

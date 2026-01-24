@@ -7,81 +7,57 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Layout = () => {
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-    // Close sidebar on route change (mobile)
+    // Close sidebar on route change (mobile only)
     useEffect(() => {
-        setIsSidebarOpen(false);
-    }, [location.pathname]);
+        if (isMobile) {
+            setIsSidebarOpen(false);
+        }
+    }, [location.pathname, isMobile]);
 
-    // Prevent scrolling when sidebar is open on mobile
+    // Handle window resize
     useEffect(() => {
-        if (isSidebarOpen) {
+        const handleResize = () => {
+            const mobile = window.innerWidth <= 768;
+            setIsMobile(mobile);
+            if (!mobile) {
+                setIsSidebarOpen(false);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Prevent body scroll when sidebar is open on mobile
+    useEffect(() => {
+        if (isMobile && isSidebarOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
-    }, [isSidebarOpen]);
+    }, [isSidebarOpen, isMobile]);
 
     return (
         <div className="app-layout">
-            <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+            <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} isMobile={isMobile} />
 
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isMobile={isMobile} />
 
             {/* Sidebar Overlay for Mobile */}
             <AnimatePresence>
-                {isSidebarOpen && (
+                {isMobile && isSidebarOpen && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
                         onClick={() => setIsSidebarOpen(false)}
                         className="sidebar-mask"
                     />
                 )}
             </AnimatePresence>
-
-            {/* Floating Animated Shapes */}
-            <motion.div
-                className="floating-shape shape-1"
-                animate={{
-                    x: [0, 30, 0],
-                    y: [0, -30, 0],
-                    scale: [1, 1.1, 1],
-                }}
-                transition={{
-                    duration: 20,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-            />
-            {/* ... rest of the floating shapes ... */}
-            <motion.div
-                className="floating-shape shape-2"
-                animate={{
-                    x: [0, -20, 0],
-                    y: [0, 20, 0],
-                    scale: [1, 0.9, 1],
-                }}
-                transition={{
-                    duration: 25,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-            />
-            <motion.div
-                className="floating-shape shape-3"
-                animate={{
-                    x: [0, 20, 0],
-                    y: [0, -20, 0],
-                    rotate: [0, 180, 360],
-                }}
-                transition={{
-                    duration: 30,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-            />
 
             <main className="main-content">
                 <div className="content-container">
