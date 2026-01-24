@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authUtils } from '../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, ArrowRight, Chrome, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Chrome, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 type AuthMode = 'signin' | 'signup' | 'reset';
 
@@ -16,6 +16,7 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
     const [formData, setFormData] = useState({
         email: '',
@@ -313,10 +314,10 @@ const Login = () => {
                             <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.9)' }}>
                                 Password
                             </label>
-                            <div className="input-group">
+                            <div className="input-group" style={{ position: 'relative' }}>
                                 <Lock className="input-icon" size={20} style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
                                 <input
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     required
                                     placeholder="••••••••"
                                     value={formData.password}
@@ -326,7 +327,7 @@ const Login = () => {
                                         paddingTop: '0.875rem',
                                         paddingBottom: '0.875rem',
                                         paddingLeft: '2.75rem',
-                                        paddingRight: '1rem',
+                                        paddingRight: '2.75rem',
                                         borderRadius: '0.75rem',
                                         background: 'rgba(30, 41, 59, 0.5)',
                                         border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -344,6 +345,29 @@ const Login = () => {
                                         e.target.style.boxShadow = 'none';
                                     }}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '0.75rem',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'rgba(255, 255, 255, 0.6)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0.25rem',
+                                        transition: 'color 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)'; }}
+                                >
+                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
                             </div>
                         </div>
                     )}

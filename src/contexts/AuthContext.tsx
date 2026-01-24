@@ -99,10 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signInWithGoogle = async () => {
+        const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `http://${window.location.host}/`
+            : `${window.location.origin}/`;
+        
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/`,
+                redirectTo: redirectUrl,
             },
         });
         // Note: auth_login_time will be set in onAuthStateChange when redirected back
@@ -117,6 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 data: {
                     name,
                 },
+                // Automatically confirm email for localhost testing
+                emailRedirectTo: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                    ? `http://${window.location.host}/`
+                    : `${window.location.origin}/`,
             },
         });
 
