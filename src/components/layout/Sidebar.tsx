@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
@@ -18,7 +18,6 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isOpen, onClose, isMobile }: SidebarProps) => {
-    const navigate = useNavigate();
     const { signOut, user } = useAuth();
 
     const navItems = [
@@ -55,8 +54,9 @@ const Sidebar = ({ isOpen, onClose, isMobile }: SidebarProps) => {
     };
 
     const handleLogout = async () => {
-        await signOut();
-        navigate('/login');
+        if (window.confirm('Are you sure you want to logout?')) {
+            await signOut();
+        }
     };
 
     return (

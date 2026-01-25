@@ -11,7 +11,7 @@ interface AuthContextType {
     isAppReady: boolean;
     signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
     signInWithGoogle: () => Promise<{ error: AuthError | null }>;
-    signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
+    signUp: (email: string, password: string, name: string) => Promise<{ data: { user: User | null; session: Session | null } | null; error: AuthError | null }>;
     signOut: () => Promise<void>;
     resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
@@ -99,18 +99,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signInWithGoogle = async () => {
-        const redirectUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? `http://${window.location.host}/`
-            : `${window.location.origin}/`;
-        
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: redirectUrl,
-            },
-        });
-        // Note: auth_login_time will be set in onAuthStateChange when redirected back
-        return { error };
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/`,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    },
+                },
+            });
+            // Note: auth_login_time will be set in onAuthStateChange when redirected back
+            return { error };
+        } catch (err) {
+            console.error('[Auth] Google OAuth error:', err);
+            return { error: err as any };
+        }
     };
 
     const signUp = async (email: string, password: string, name: string) => {
@@ -121,10 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 data: {
                     name,
                 },
-                // Automatically confirm email for localhost testing
-                emailRedirectTo: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                    ? `http://${window.location.host}/`
-                    : `${window.location.origin}/`,
+                emailRedirectTo: `${window.location.origin}/`,
             },
         });
 
@@ -132,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             authUtils.setLoginTime();
         }
 
-        return { error };
+        return { data, error };
     };
 
     const signOut = async () => {
