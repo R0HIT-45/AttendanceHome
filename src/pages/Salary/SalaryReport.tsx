@@ -81,19 +81,29 @@ const SalaryReport = () => {
 
     const handleExport = async (formatType: 'pdf' | 'excel') => {
         const { data: { user } } = await supabase.auth.getUser();
+
+        // Ensure we have data to export
+        if (!stats.reports || stats.reports.length === 0) {
+            // handle empty case if needed, but for now just return
+            return;
+        }
+
         const exportData = stats.reports.map(r => ({
-            name: r.name,
-            aadhaar: r.aadhaar,
-            attendance: r.totalAttendance,
-            wage: `₹${r.totalWage.toLocaleString()}`,
-            details: r.dailyHistory.map(h => `${format(parseISO(h.date), 'dd MMM')}: ${h.status}`).join(', ')
+            name: r.name || 'Unknown',
+            aadhaar: r.aadhaar || '-',
+            attendance: r.totalAttendance.toString(),
+            wage: r.totalWage, // Keep as number for Excel, format for PDF inside utils if needed, or format here
+            formattedWage: `₹${r.totalWage.toLocaleString()}`,
+            details: r.dailyHistory.length > 0
+                ? r.dailyHistory.map(h => `${format(parseISO(h.date), 'dd/MM')}: ${h.status}`).join(', ')
+                : 'No records'
         }));
 
         const columns = [
             { header: 'Labourer Name', dataKey: 'name' },
             { header: 'Aadhaar ID', dataKey: 'aadhaar' },
             { header: 'Days Worked', dataKey: 'attendance' },
-            { header: 'Monthly Wage', dataKey: 'wage' },
+            { header: 'Monthly Wage', dataKey: 'formattedWage' }, // Use formatted wage
             { header: 'Detailed Breakdown', dataKey: 'details' }
         ];
 
@@ -158,23 +168,68 @@ const SalaryReport = () => {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 10 }}
-                                    className="glass-panel"
                                     style={{
                                         position: 'absolute',
                                         top: '110%',
                                         right: 0,
                                         zIndex: 1000,
                                         padding: '0.5rem',
-                                        minWidth: '180px',
-                                        boxShadow: '0 15px 40px rgba(0,0,0,0.4)',
-                                        border: '1px solid rgba(255,255,255,0.1)'
+                                        minWidth: '200px',
+                                        background: '#1e1e2f', // Solid dark background for visibility
+                                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '0.75rem'
                                     }}
                                 >
-                                    <button onClick={() => handleExport('pdf')} className="flex-row items-center gap-3" style={{ width: '100%', padding: '0.85rem', borderRadius: '0.5rem', background: 'transparent', color: 'white', border: 'none', textAlign: 'left', cursor: 'pointer' }}>
-                                        <FileText size={16} color="#ff7675" /> <span style={{ fontWeight: 700 }}>Excel-Ready PDF</span>
+                                    <button
+                                        onClick={() => handleExport('pdf')}
+                                        className="export-btn"
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.85rem',
+                                            borderRadius: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            background: 'transparent',
+                                            color: '#fff',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.2s',
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <FileText size={18} color="#ff7675" />
+                                        <div className="flex-col" style={{ alignItems: 'flex-start', gap: 0 }}>
+                                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Download PDF</span>
+                                            <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)' }}>Optimized for printing</span>
+                                        </div>
                                     </button>
-                                    <button onClick={() => handleExport('excel')} className="flex-row items-center gap-3" style={{ width: '100%', padding: '0.85rem', borderRadius: '0.5rem', background: 'transparent', color: 'white', border: 'none', textAlign: 'left', cursor: 'pointer' }}>
-                                        <Table size={16} color="#55efc4" /> <span style={{ fontWeight: 700 }}>Spreadsheet (XLSX)</span>
+                                    <button
+                                        onClick={() => handleExport('excel')}
+                                        className="export-btn"
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.85rem',
+                                            borderRadius: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            background: 'transparent',
+                                            color: '#fff',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <Table size={18} color="#55efc4" />
+                                        <div className="flex-col" style={{ alignItems: 'flex-start', gap: 0 }}>
+                                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Export to Excel</span>
+                                            <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)' }}>Raw data analysis</span>
+                                        </div>
                                     </button>
                                 </motion.div>
                             )}

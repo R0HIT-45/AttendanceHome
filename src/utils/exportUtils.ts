@@ -32,13 +32,32 @@ export const exportToPDF = ({ title, subtitle, filename, columns, data, userName
         startY: subtitle ? 35 : 28,
         head: [columns.map(col => col.header)],
         body: data.map(item => columns.map(col => item[col.dataKey])),
-        theme: 'striped',
-        headStyles: { fillStyle: 'fill', fillColor: [102, 126, 234], textColor: 255 },
+        theme: 'grid', // Changed to grid for better structure
+        styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1,
+        },
+        headStyles: {
+            fillStyle: 'fill',
+            fillColor: [102, 126, 234],
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        columnStyles: {
+            0: { cellWidth: 35 }, // Name
+            1: { cellWidth: 30 }, // Aadhaar
+            2: { cellWidth: 25, halign: 'center' }, // Days Worked
+            3: { cellWidth: 30, halign: 'right' }, // Wage
+            4: { cellWidth: 'auto' } // Breakdown (auto expand)
+        },
         didDrawPage: (data: any) => {
             // Footer Metadata
             const pageSize = doc.internal.pageSize;
             const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-            doc.setFontSize(9);
+            doc.setFontSize(8);
             doc.setTextColor(150, 150, 150);
 
             const footerY = pageHeight - 10;
